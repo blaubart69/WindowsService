@@ -17,7 +17,7 @@ namespace ProkopService1
     public partial class Service1 : ServiceBase
     {
         readonly string servicelog = @"c:\temp\ProkopSvc.log";
-        readonly string reg_keyname = @"HKLM\Software\OntapGrepper";
+        readonly string reg_keyname = @"Software\OntapGrep";
         readonly string reg_name_filesscanned = "TotalFilesScanned";
         CancellationTokenSource cts;
         TextWriter logWriter;
@@ -110,7 +110,7 @@ namespace ProkopService1
                 }
                 finally
                 {
-                    // wenn wir sterben, stirbt alles
+                    // wenn wir sterben nehmen wir die anderen mit
                     base.Stop();
                 }
             }
@@ -149,14 +149,22 @@ namespace ProkopService1
             }
             catch (Exception ex)
             {
-                Log($"X: RegistryUpdater {ex}");
+                try
+                {
+                    Log($"X: RegistryUpdater {ex}");
+                }
+                finally
+                {
+                    // wenn wir sterben nehmen wir die anderen mit
+                    base.Stop();
+                }
             }
         }
 
         protected override void OnStart(string[] args)
         {
-            Log("OnStart");
             logWriter = new StreamWriter(servicelog);
+            Log("OnStart");
             ATOMIC_filesScanned = 0;
             cts = new CancellationTokenSource();
             regkey = Registry.LocalMachine.OpenSubKey(reg_keyname);
@@ -166,18 +174,31 @@ namespace ProkopService1
 
         protected override void OnStop()
         {
-            cts.Cancel();
-            Log("I: OnStop called. pressing Cancel. Waiting for tasks to shutdown...");
-            if ( Task.WaitAll(new Task[] { syslogTask, registryTask }, TimeSpan.FromSeconds(2) ) )
+            try
             {
-                Log($"I: all tasks have been ended within 2 secs");
-            }
-            else
-            {
-                Log("W: tasks could not be ended gracefully");
-            }
+                cts.Cancel();
+                Log("I: OnStop called. pressing Cancel. Waiting for tasks to shutdown...");
+                if (Task.WaitAll(new Task[] { syslogTask, registryTask }, TimeSpan.FromSeconds(2)))
+                {
+                    Log($"I: tasks have been ended successfully");
+                }
+                else
+                {
+                    Log("W: tasks could not be ended gracefully");
+                }
 
-            logWriter.Close();
+                regkey.SetValue(reg_name_filesscanned, Interlocked.Read(ref ATOMIC_filesScanned).ToString(), RegistryValueKind.String);
+
+                regkey.Close();
+            }
+            catch (Exception ex)
+            {
+                Log($"X: OnStop(): {ex}");
+            }
+            finally
+            {
+                logWriter.Close();
+            }
         }
     }
 }

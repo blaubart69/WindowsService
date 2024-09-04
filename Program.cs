@@ -14,6 +14,11 @@ namespace ProkopService1
         /// </summary>
         static void Main()
         {
+            /*
+            string args = String.Join("\n", System.Environment.GetCommandLineArgs());
+            System.IO.File.WriteAllText(@"c:\temp\helloService.txt", $"args:\n{args}");
+            */
+
             ServiceBase[] ServicesToRun;
             ServicesToRun = new ServiceBase[]
             {
